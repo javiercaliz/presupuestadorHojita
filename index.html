@@ -51,6 +51,29 @@ label.f textarea{resize:vertical;min-height:64px;line-height:1.45}
 .stage{padding:28px;display:flex;justify-content:center;align-items:flex-start;overflow:hidden}
 .scaler{transform-origin:top center}
 
+/* ---------- Calculadora 3D ---------- */
+details.cfg{margin-top:18px;border:1.5px solid var(--line);border-radius:14px;background:var(--cream)}
+details.cfg summary{list-style:none;cursor:pointer;padding:11px 14px;font-family:'Quicksand';font-weight:700;font-size:12px;letter-spacing:1.5px;text-transform:uppercase;color:var(--sagedk);display:flex;justify-content:space-between;align-items:center}
+details.cfg summary::-webkit-details-marker{display:none}
+details.cfg summary:after{content:'+';font-size:18px;color:var(--pink)} details.cfg[open] summary:after{content:'–'}
+details.cfg .in{padding:0 14px 14px}
+details.cfg label.f input,details.cfg label.f select{background:#fff}
+label.f select{display:block;width:100%;margin-top:4px;border:1.5px solid var(--line);border-radius:10px;padding:9px 11px;font-size:14px;background:var(--cream);font-family:inherit;color:inherit}
+.calct{grid-column:1/-1;display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--sagedk);cursor:pointer;user-select:none}
+.calct input{accent-color:var(--pink);width:16px;height:16px}
+.calcbox{grid-column:1/-1;background:var(--cream);border-radius:12px;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.calcbox label.f input{padding:7px 9px;font-size:13.5px;background:#fff}
+.chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:5px;align-items:center}
+.chips .lbl{font-size:12px;font-weight:600;color:var(--muted);width:100%}
+.chip{border:1.5px solid var(--line);background:#fff;border-radius:9px;padding:5px 9px;font-size:12.5px;font-weight:700;cursor:pointer;color:var(--ink)}
+.chip.on{background:var(--pink);border-color:var(--pink);color:#fff}
+.chips input{width:62px;border:1.5px solid var(--line);border-radius:9px;padding:5px 7px;font-size:12.5px;background:#fff}
+.bd{grid-column:1/-1;font-size:12px;color:var(--muted);border-top:1px dashed var(--line);padding-top:7px}
+.bd div{display:flex;justify-content:space-between;padding:1.5px 0}
+.bd .t{color:var(--ink);font-weight:700}
+.bd .p{color:var(--pink);font-weight:800;font-size:13.5px}
+.item .fields input[disabled]{background:var(--blush);color:var(--pink);font-weight:800;border-color:transparent}
+
 /* ---------- Quote page (A4) ---------- */
 .page{width:210mm;min-height:297mm;background:var(--cream);position:relative;display:flex;flex-direction:column;box-shadow:0 10px 40px rgba(78,95,85,.15);border-radius:4px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
 .frame{position:absolute;inset:9mm;border:2px solid var(--blush);border-radius:18px;pointer-events:none}
@@ -143,6 +166,26 @@ table.q tr{break-inside:avoid;page-break-inside:avoid}
       </div>
     </div>
 
+
+    <details class="cfg" id="cfgbox">
+      <summary>Costos de impresión 3D</summary>
+      <div class="in">
+        <div class="grid2">
+          <label class="f">Filamento ($/kg)<input data-c="fil" type="number" min="0"></label>
+          <label class="f">Precio kWh ($)<input data-c="kwh" type="number" min="0"></label>
+          <label class="f">Consumo impresora (W)<input data-c="w" type="number" min="0"></label>
+          <label class="f">Vida útil máquina (h)<input data-c="vida" type="number" min="0"></label>
+          <label class="f">Costo repuestos ($)<input data-c="rep" type="number" min="0"></label>
+          <label class="f">Margen de error (%)<input data-c="err" type="number" min="0"></label>
+          <label class="f">Recargo insumos (%)<input data-c="recIns" type="number" min="0"></label>
+          <label class="f">Recargo MercadoLibre (%)<input data-c="recML" type="number" min="0"></label>
+          <label class="f" style="grid-column:1/-1">Redondear precio hacia arriba a
+            <select data-c="red"><option value="0">Sin redondeo</option><option value="10">$ 10</option><option value="50">$ 50</option><option value="100">$ 100</option><option value="500">$ 500</option></select></label>
+        </div>
+        <p class="hint">Se usan en los productos que tengan activado "Calcular precio". Nada de esto aparece en el PDF.</p>
+      </div>
+    </details>
+
     <div class="sec">
       <h2>Productos</h2>
       <div id="items"></div>
@@ -184,7 +227,7 @@ const longDate = iso => { if(!iso) return ""; const [y,m,d]=iso.split("-").map(N
 const addDays = (iso,n) => { const [y,m,d]=iso.split("-").map(Number); const dt=new Date(y,m-1,d+Number(n||0)); return dt.getFullYear()+"-"+String(dt.getMonth()+1).padStart(2,"0")+"-"+String(dt.getDate()).padStart(2,"0") };
 const num = v => { const n=parseFloat(String(v).replace(/\./g,"").replace(",",".")); return isNaN(n)?0:n };
 
-const blankItem = () => ({img:"",nombre:"",precio:"",cantidad:""});
+const blankItem = () => ({img:"",nombre:"",precio:"",cantidad:"",calc:{on:false,h:"",m:"",g:"",ins:"",mult:"4"}});
 function fresh(){
   return {fecha:today(), validez:15, cliente:"", contacto:"", propuesta:"", condiciones:DEF_COND, items:[blankItem()]};
 }
@@ -199,6 +242,39 @@ function save(){
   }
 }
 
+
+/* ---------- Calculadora 3D (costos) ---------- */
+const KEYC = "hojita-costos-3d-v1";
+const DEF_CFG = {fil:25000, kwh:315, w:150, vida:4320, rep:150000, err:5, recIns:30, recML:16, red:100};
+let cfg; try{ cfg = {...DEF_CFG, ...(JSON.parse(store.get(KEYC))||{})} }catch(e){ cfg = {...DEF_CFG} }
+const dec = v => { const n=parseFloat(String(v??"").replace(",",".")); return isNaN(n)?0:n };
+const MULTS = [["2","Alto volumen / descuento"],["2.5","Volumen medio"],["3","Mayorista"],["3.5","Intermedio"],["4","Minorista"],["5","Llaveros / piezas chicas"]];
+const blankCalc = () => ({on:false,h:"",m:"",g:"",ins:"",mult:"4"});
+function calc(k){
+  const hrs = dec(k.h) + dec(k.m)/60;
+  const material = dec(k.g)/1000 * dec(cfg.fil);
+  const luz = dec(cfg.w)/1000 * hrs * dec(cfg.kwh);
+  const desgaste = dec(cfg.vida)>0 ? dec(cfg.rep)/dec(cfg.vida) * hrs : 0;
+  const error = (material+luz+desgaste) * dec(cfg.err)/100;
+  const costo = material+luz+desgaste+error;
+  const insumos = dec(k.ins) * (1 + dec(cfg.recIns)/100);
+  const mult = dec(k.mult);
+  const total = costo*mult + insumos;
+  const ml = costo*mult*(1 + dec(cfg.recML)/100) + insumos;
+  const r = dec(cfg.red);
+  const precio = r>0 ? Math.ceil(total/r - 1e-9)*r : Math.round(total);
+  return {material,luz,desgaste,error,costo,insumos,mult,total,ml,precio};
+}
+const money2 = v => "$ " + new Intl.NumberFormat("es-AR",{minimumFractionDigits:2,maximumFractionDigits:2}).format(v||0);
+function applyCalc(it){ if(it.calc && it.calc.on){ it.precio = String(calc(it.calc).precio) } }
+document.querySelectorAll("[data-c]").forEach(el=>{
+  el.value = cfg[el.dataset.c];
+  el.addEventListener("input",()=>{
+    cfg[el.dataset.c] = el.value; store.set(KEYC, JSON.stringify(cfg));
+    state.items.forEach(applyCalc); save(); renderItems(); render();
+  });
+});
+
 /* ---------- Form ---------- */
 const bind = ["fecha","validez","cliente","contacto","propuesta","condiciones"];
 function fillForm(){
@@ -210,6 +286,7 @@ bind.forEach(k=>$(k).addEventListener("input",e=>{ state[k]=e.target.value; save
 function renderItems(){
   const box=$("items"); box.innerHTML="";
   state.items.forEach((it,i)=>{
+    if(!it.calc) it.calc = blankCalc();
     const el=document.createElement("div"); el.className="item";
     el.innerHTML=`
       <label class="pic ${it.img?'has':''}" style="${it.img?`background-image:url('${it.img}')`:''}">
@@ -217,9 +294,21 @@ function renderItems(){
       </label>
       <div class="fields">
         <label class="f full">Producto<input data-k="nombre" value="${esc(it.nombre)}" placeholder="Ej: Soporte escritorio"></label>
-        <label class="f">Precio unitario<input data-k="precio" inputmode="decimal" value="${esc(it.precio)}" placeholder="4300"></label>
+        <label class="f">Precio unitario<input data-k="precio" inputmode="decimal" value="${esc(it.precio)}" placeholder="4300" ${it.calc.on?'disabled title="Calculado automáticamente"':''}></label>
         <label class="f">Cantidad<input data-k="cantidad" inputmode="numeric" value="${esc(it.cantidad)}" placeholder="30"></label>
+        <label class="calct"><input type="checkbox" data-calc-on ${it.calc.on?'checked':''}> Calcular precio (impresión 3D)</label>
       </div>
+      ${it.calc.on?`<div class="calcbox">
+        <label class="f">Horas de impresión<input data-q="h" type="number" min="0" value="${esc(it.calc.h)}" placeholder="11"></label>
+        <label class="f">Minutos adicionales<input data-q="m" type="number" min="0" value="${esc(it.calc.m)}" placeholder="0"></label>
+        <label class="f">Gramos de filamento<input data-q="g" type="number" min="0" value="${esc(it.calc.g)}" placeholder="102"></label>
+        <label class="f">Insumos extra ($)<input data-q="ins" type="number" min="0" value="${esc(it.calc.ins)}" placeholder="0"></label>
+        <div class="chips"><span class="lbl">Multiplicador</span>
+          ${MULTS.map(([v,t])=>`<button class="chip ${dec(it.calc.mult)==dec(v)?'on':''}" data-mult="${v}" title="${t}">×${v.replace('.',',')}</button>`).join("")}
+          <input data-q="mult" type="number" step="0.1" min="0" value="${esc(it.calc.mult)}" title="Multiplicador personalizado (ej: 2,8)">
+        </div>
+        <div class="bd" data-bd></div>
+      </div>`:''}
       <div class="sub"><span>Subtotal <b data-sub>${money(num(it.precio)*num(it.cantidad))}</b></span>
         <button class="del" title="Quitar producto">Quitar</button></div>`;
     el.querySelectorAll("input[data-k]").forEach(inp=>inp.addEventListener("input",e=>{
@@ -227,6 +316,36 @@ function renderItems(){
       el.querySelector("[data-sub]").textContent=money(num(it.precio)*num(it.cantidad));
       save(); render();
     }));
+    const refresh = () => {
+      applyCalc(it);
+      const pi = el.querySelector("[data-k=precio]"); if(it.calc.on) pi.value = it.precio;
+      el.querySelector("[data-sub]").textContent = money(num(it.precio)*num(it.cantidad));
+      const bd = el.querySelector("[data-bd]");
+      if(bd){ const r = calc(it.calc);
+        bd.innerHTML = `<div><span>Material</span><span>${money2(r.material)}</span></div>
+          <div><span>Luz</span><span>${money2(r.luz)}</span></div>
+          <div><span>Desgaste máquina</span><span>${money2(r.desgaste)}</span></div>
+          <div><span>Margen de error</span><span>${money2(r.error)}</span></div>
+          <div class="t"><span>Costo total (sin insumos)</span><span>${money2(r.costo)}</span></div>
+          <div><span>Insumos (+${dec(cfg.recIns)}%)</span><span>${money2(r.insumos)}</span></div>
+          <div class="t"><span>Total a cobrar</span><span>${money2(r.total)}</span></div>
+          <div><span>Precio MercadoLibre</span><span>${money2(r.ml)}</span></div>
+          <div class="p"><span>Precio unitario${dec(cfg.red)>0?' (redondeado)':''}</span><span>${money(r.precio)}</span></div>`; }
+    };
+    el.querySelector("[data-calc-on]").addEventListener("change",e=>{
+      it.calc.on = e.target.checked; applyCalc(it); save(); renderItems(); render();
+    });
+    el.querySelectorAll("[data-q]").forEach(inp=>inp.addEventListener("input",e=>{
+      it.calc[e.target.dataset.q] = e.target.value;
+      if(e.target.dataset.q==="mult") el.querySelectorAll("[data-mult]").forEach(b=>b.classList.toggle("on", dec(b.dataset.mult)===dec(e.target.value)));
+      refresh(); save(); render();
+    }));
+    el.querySelectorAll("[data-mult]").forEach(b=>b.addEventListener("click",()=>{
+      it.calc.mult = b.dataset.mult; el.querySelector("[data-q=mult]").value = b.dataset.mult;
+      el.querySelectorAll("[data-mult]").forEach(x=>x.classList.toggle("on", x===b));
+      refresh(); save(); render();
+    }));
+    refresh();
     el.querySelector("input[type=file]").addEventListener("change",async e=>{
       const f=e.target.files[0]; if(!f) return;
       it.img = await shrink(f, 500); save(); renderItems(); render();
